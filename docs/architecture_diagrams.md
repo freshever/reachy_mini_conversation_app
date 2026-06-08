@@ -430,31 +430,31 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant LOOP as 控制循环 60Hz
+    participant CTL as 控制循环 60Hz
     participant CMD as _command_queue
     participant CW as CameraWorker
     participant STATE as MovementState
     participant SDK as ReachyMini.set_target
 
     loop 每16.7ms
-        LOOP->>CMD: 消费所有待处理命令 set_listening / queue_move / sound_direction
-        LOOP->>CW: get_face_tracking_offsets()
-        CW-->>LOOP: 最新人脸偏移
-        LOOP->>STATE: _apply_pending_offsets() [face + sound_direction yaw]
+        CTL->>CMD: 消费所有待处理命令 set_listening / queue_move / sound_direction
+        CTL->>CW: get_face_tracking_offsets()
+        CW-->>CTL: 最新人脸偏移
+        CTL->>STATE: _apply_pending_offsets() [face + sound_direction yaw]
 
-        LOOP->>LOOP: _manage_move_queue(t) [切换主动作]
-        LOOP->>LOOP: _manage_breathing(t)
-        Note right of LOOP: 无活动 >0.3s → 自动启动 BreathingMove
+        CTL->>CTL: _manage_move_queue(t) 切换主动作
+        CTL->>CTL: _manage_breathing(t)
+        Note right of CTL: 无活动 >0.3s → 自动启动 BreathingMove
 
-        LOOP->>LOOP: _get_primary_pose(t) [当前主动作.evaluate(t)]
-        LOOP->>LOOP: _get_secondary_pose() [face_tracking_offsets → 4×4]
-        LOOP->>LOOP: combine_full_body(primary, secondary)
-        Note right of LOOP: compose_world_offset 做世界系叠加
+        CTL->>CTL: _get_primary_pose(t) 当前主动作.evaluate(t)
+        CTL->>CTL: _get_secondary_pose() face_tracking_offsets → 4x4
+        CTL->>CTL: combine_full_body(primary, secondary)
+        Note right of CTL: compose_world_offset 做世界系叠加
 
-        LOOP->>LOOP: _calculate_blended_antennas(target_antennas)
-        Note right of LOOP: 聆听模式 → 天线冻结; 解除后 0.4s 平滑混合
+        CTL->>CTL: _calculate_blended_antennas(target_antennas)
+        Note right of CTL: 聆听模式 → 天线冻结，解除后 0.4s 平滑混合
 
-        LOOP->>SDK: set_target(head=..., antennas=..., body_yaw=...)
+        CTL->>SDK: set_target(head, antennas, body_yaw)
     end
 ```
 
