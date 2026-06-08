@@ -118,19 +118,19 @@ classDiagram
     }
 
     class OpenAIRealtimeHandler {
-        +BACKEND_PROVIDER = "openai"
-        +SAMPLE_RATE = 24000
-        +REFRESH_CLIENT_ON_RECONNECT = False
+        +BACKEND_PROVIDER: str
+        +SAMPLE_RATE: int
+        +REFRESH_CLIENT_ON_RECONNECT: bool
     }
 
     class HFRealtimeHandler {
-        +BACKEND_PROVIDER = "huggingface"
-        +SAMPLE_RATE = 16000
-        +REFRESH_CLIENT_ON_RECONNECT = True
+        +BACKEND_PROVIDER: str
+        +SAMPLE_RATE: int
+        +REFRESH_CLIENT_ON_RECONNECT: bool
     }
 
     class GeminiLiveHandler {
-        +BACKEND_PROVIDER = "gemini"
+        +BACKEND_PROVIDER: str
         +start_up() None
         +receive(frame) None
         +emit() HandlerOutput
@@ -146,7 +146,7 @@ classDiagram
         -_pending_face_offsets: tuple
         -_face_offsets_dirty: bool
         -_sound_direction_lock: Lock
-        -_pending_sound_direction: float|None
+        -_pending_sound_direction: float
         -_sound_direction_dirty: bool
         -_is_listening: bool
         -_breathing_active: bool
@@ -169,38 +169,38 @@ classDiagram
     }
 
     class MovementState {
-        +current_move: Move|None
-        +move_start_time: float|None
+        +current_move: Move
+        +move_start_time: float
         +last_activity_time: float
-        +face_tracking_offsets: tuple[float x6]
-        +last_primary_pose: FullBodyPose|None
+        +face_tracking_offsets: tuple
+        +last_primary_pose: FullBodyPose
         +update_activity() None
     }
 
     class BreathingMove {
         +interpolation_start_pose: NDArray
         +interpolation_start_antennas: tuple
-        +duration = inf
+        +duration: float
         +evaluate(t) FullBodyPose
     }
 
     class CameraWorker {
         +reachy_mini: ReachyMini
-        +head_tracker: HeadTracker|None
-        +latest_frame: NDArray|None
-        +face_tracking_offsets: list[float x6]
-        +face_lost_delay = 2.0s
-        +interpolation_duration = 1.0s
+        +head_tracker: HeadTracker
+        +latest_frame: NDArray
+        +face_tracking_offsets: list
+        +face_lost_delay: float
+        +interpolation_duration: float
         +start() None
         +stop() None
         +working_loop() None
-        +get_latest_frame() NDArray|None
+        +get_latest_frame() NDArray
         +get_face_tracking_offsets() tuple
         +set_head_tracking_enabled(enabled) None
     }
 
     class HeadTracker {
-        +get_head_position(frame) tuple[eye_center, bbox]
+        +get_head_position(frame) tuple
     }
 
     class ToolDependencies {
@@ -214,10 +214,10 @@ classDiagram
         +set_target(head, antennas, body_yaw) None
         +get_current_head_pose() NDArray
         +get_current_joint_positions() tuple
-        +look_at_image(x, y, ...) NDArray
-        +media.get_frame() NDArray
-        +media.push_audio_sample(audio) None
-        +media.get_output_audio_samplerate() int
+        +look_at_image(x, y) NDArray
+        +media_get_frame() NDArray
+        +media_push_audio_sample(audio) None
+        +media_get_output_samplerate() int
     }
 
     ConversationHandler <|-- BaseRealtimeHandler
@@ -489,7 +489,7 @@ sequenceDiagram
     end
 
     Note over MM: 新的主动作入队 → 立即打断呼吸
-    MM->>MM: current_move = None; _breathing_active = False
+    MM->>MM: 清除 current_move，重置 breathing_active
 ```
 
 ---
@@ -524,7 +524,7 @@ graph LR
     BRH -->|set_sound_direction via queue| MM
     BRH -->|submit tool call| BTMGR
     BTMGR -->|queue_move via queue| MM
-    CW -->|face_tracking_offsets (lock)| MM
+    CW -->|face_tracking_offsets via lock| MM
     MM -->|set_target| SDK
     CW -->|get_frame| SDK
     BRH -->|push_audio_sample| SDK
