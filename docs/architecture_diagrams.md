@@ -348,12 +348,12 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant CAM as ReachyMini.media
-    participant CW as CameraWorker (线程)
+    participant CW as CameraWorker 线程
     participant HT as HeadTracker
-    participant MM as MovementManager (控制循环)
+    participant MM as MovementManager 控制循环
     participant SDK as ReachyMini.set_target
 
-    loop 每帧 (~30 Hz)
+    loop 每帧约30Hz
         CW->>CAM: get_frame()
         CAM-->>CW: frame (BGR NDArray)
 
@@ -373,9 +373,9 @@ sequenceDiagram
         end
     end
 
-    loop 控制循环 (60 Hz)
+    loop 控制循环 60Hz
         MM->>CW: get_face_tracking_offsets()
-        CW-->>MM: (x,y,z,roll,pitch,yaw)
+        CW-->>MM: x,y,z,roll,pitch,yaw
         MM->>MM: _apply_pending_offsets() 写入 state.face_tracking_offsets
         MM->>MM: _get_secondary_pose() → secondary FullBodyPose
         MM->>MM: _compose_full_body_pose() = primary ⊕ secondary
@@ -430,14 +430,14 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant LOOP as 控制循环 (60 Hz)
+    participant LOOP as 控制循环 60Hz
     participant CMD as _command_queue
     participant CW as CameraWorker
     participant STATE as MovementState
     participant SDK as ReachyMini.set_target
 
-    loop 每 ~16.7 ms
-        LOOP->>CMD: 消费所有待处理命令 (set_listening / queue_move / sound_direction)
+    loop 每16.7ms
+        LOOP->>CMD: 消费所有待处理命令 set_listening / queue_move / sound_direction
         LOOP->>CW: get_face_tracking_offsets()
         CW-->>LOOP: 最新人脸偏移
         LOOP->>STATE: _apply_pending_offsets() [face + sound_direction yaw]
@@ -478,7 +478,7 @@ sequenceDiagram
     MM->>BM: BreathingMove(start_pose, start_antennas, interp_duration=1.0)
     MM->>MM: move_queue.append(breathing_move)
 
-    loop 呼吸中 (无限 duration)
+    loop 呼吸中 无限循环
         MM->>BM: evaluate(t)
         alt t < 1.0s (过渡阶段)
             BM-->>MM: 线性插值 → 中立姿态
