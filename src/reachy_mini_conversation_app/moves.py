@@ -291,6 +291,11 @@ class MovementManager:
         )
         self._face_offsets_dirty = False
 
+        # Sound direction offsets (yaw) - set by audio direction estimator
+        self._sound_direction_lock = threading.Lock()
+        self._pending_sound_direction: float | None = None
+        self._sound_direction_dirty = False
+
         self._shared_state_lock = threading.Lock()
         self._shared_last_activity_time = self.state.last_activity_time
         self._shared_is_listening = self._is_listening
@@ -347,6 +352,15 @@ class MovementManager:
                 return
         self._command_queue.put(("set_listening", listening))
 
+    def set_sound_direction(self, yaw_radians: float | None) -> None:
+        """Externally set the estimated sound-source yaw (radians).
+
+        Thread-safe: posted to the worker via the command queue so the control
+        loop remains the sole mutator of movement state.
+        Passing `None` clears the sound-direction override.
+        """
+        self._command_queue.put(("sound_direction", yaw_radians))
+
     def _poll_signals(self, current_time: float) -> None:
         """Apply queued commands and pending offset updates."""
         self._apply_pending_offsets()
@@ -368,6 +382,20 @@ class MovementManager:
 
         if face_offsets is not None:
             self.state.face_tracking_offsets = face_offsets
+            self.state.update_activity()
+
+        # Apply latest sound-direction yaw if present (overrides yaw component)
+        sound_dir: float | None = None
+        with self._sound_direction_lock:
+            if self._sound_direction_dirty:
+                sound_dir = self._pending_sound_direction
+                self._sound_direction_dirty = False
+
+        if sound_dir is not None:
+            # Replace only the yaw component (index 5) while preserving other offsets
+            cur = self.state.face_tracking_offsets
+            new = (cur[0], cur[1], cur[2], cur[3], cur[4], sound_dir)
+            self.state.face_tracking_offsets = new
             self.state.update_activity()
 
     def _handle_command(self, command: str, payload: Any, current_time: float) -> None:
@@ -429,6 +457,22 @@ class MovementManager:
                 # Unfreeze: restart blending from frozen pose
                 self._antenna_unfreeze_blend = 0.0
             self.state.update_activity()
+        elif command == "sound_direction":
+            # Payload is float radians or None to clear
+            try:
+                if payload is None:
+                    with self._sound_direction_lock:
+                        self._pending_sound_direction = None
+                        self._sound_direction_dirty = True
+                else:
+                    yaw = float(payload)
+                    with self._sound_direction_lock:
+                        self._pending_sound_direction = yaw
+                        self._sound_direction_dirty = True
+                    # mark activity so breathing/idle logic respects recent sound
+                    self.state.update_activity()
+            except Exception as e:
+                logger.warning("Invalid sound_direction payload: %s (%s)", payload, e)
         else:
             logger.warning("Unknown command received by MovementManager: %s", command)
 

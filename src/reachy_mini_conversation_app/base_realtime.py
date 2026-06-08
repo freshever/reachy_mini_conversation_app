@@ -730,7 +730,13 @@ class BaseRealtimeHandler(ConversationHandler, ABC):
                     if event.type == "input_audio_buffer.speech_stopped":
                         self._mark_activity("user_speech_stopped")
                         self.deps.movement_manager.set_listening(False)
-                        logger.debug("User speech stopped - server will auto-commit with VAD")
+                            # Clear any sound-direction override when speech stops
+                            try:
+                                if getattr(self, "deps", None) is not None and getattr(self.deps, "movement_manager", None) is not None:
+                                    self.deps.movement_manager.set_sound_direction(None)
+                            except Exception:
+                                pass
+                            logger.debug("User speech stopped - server will auto-commit with VAD")
 
                     if event.type == "response.output_audio.done":
                         logger.debug("response completed")
@@ -932,7 +938,35 @@ class BaseRealtimeHandler(ConversationHandler, ABC):
             # Scipy channels last convention
             if audio_frame.shape[1] > audio_frame.shape[0]:
                 audio_frame = audio_frame.T
-            # Multiple channels -> Mono channel
+            # Estimate sound direction when multiple channels are present
+            try:
+                if audio_frame.shape[1] > 1 and getattr(self, "deps", None) is not None and getattr(self.deps, "movement_manager", None) is not None:
+                    # Compute per-channel RMS energy
+                    energies = (audio_frame.astype(float) ** 2).mean(axis=0)
+                    total = energies.sum()
+                    if total > 0:
+                        # For stereo (2 channels) map energy difference to yaw
+                        if energies.size == 2:
+                            left, right = float(energies[0]), float(energies[1])
+                            ratio = (right - left) / (left + right)
+                            max_yaw = 0.6  # radians ~34deg maximum turn
+                            yaw = max(-max_yaw, min(max_yaw, ratio * max_yaw))
+                        else:
+                            # Multi-channel centroid approach: channels indexed from -1..1
+                            idx = np.arange(energies.size, dtype=float) - (energies.size - 1) / 2.0
+                            centroid = float((idx * energies).sum() / total)
+                            # Normalize centroid to [-1, 1]
+                            norm = centroid / ((energies.size - 1) / 2.0) if energies.size > 1 else 0.0
+                            max_yaw = 0.6
+                            yaw = max(-max_yaw, min(max_yaw, norm * max_yaw))
+                        try:
+                            self.deps.movement_manager.set_sound_direction(yaw)
+                        except Exception:
+                            pass
+            except Exception:
+                # Best-effort: do not fail audio pipeline on direction estimation errors
+                pass
+            # Multiple channels -> Mono channel for sending upstream
             if audio_frame.shape[1] > 1:
                 audio_frame = audio_frame[:, 0]
 
